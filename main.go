@@ -32,19 +32,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	var correct, wrong int
-
-	for _, v := range problems {
-		var input string
-		fmt.Printf("What is %s? ", v.question)
-		fmt.Scan(&input)
-
-		if v.answer == input {
-			correct++
-		} else {
-			wrong++
-		}
-	}
+	correct, wrong := askQuestions(problems)
 	fmt.Println("\nTotal number of questions: ", len(problems))
 	fmt.Printf("You answered %v questions correctly and %v questions wrongly.\n", correct, wrong)
 }
@@ -70,4 +58,20 @@ func getProblems(r io.Reader) (problems []problem) {
 		problems = append(problems, problem{field[0], strings.TrimSpace(field[1])})
 	}
 	return problems
+}
+
+func askQuestions(questions []problem) (int, int) {
+	var correct, wrong int
+	for _, v := range questions {
+		var input string
+		fmt.Printf("What is %s? ", v.question)
+		fmt.Scan(&input)
+
+		if v.answer == input {
+			correct++
+		} else {
+			wrong++
+		}
+	}
+	return correct, wrong
 }
