@@ -27,11 +27,15 @@ func main() {
 	defer closer()
 
 	problems := getProblems(file)
+	if len(problems) == 0 {
+		fmt.Println("No questions available.")
+		os.Exit(1)
+	}
+
 	var correct, wrong int
 
 	for _, v := range problems {
 		var input string
-
 		fmt.Printf("What is %s? ", v.question)
 		fmt.Scan(&input)
 
@@ -55,18 +59,14 @@ func getProblemsFile(name string) (*os.File, func(), error) {
 
 func getProblems(r io.Reader) (problems []problem) {
 	cr := csv.NewReader(r)
-
 	for {
 		field, err := cr.Read()
-
 		if err == io.EOF {
 			break
 		}
-
 		if err != nil {
 			panic(err)
 		}
-
 		problems = append(problems, problem{field[0], strings.TrimSpace(field[1])})
 	}
 	return problems
