@@ -7,9 +7,8 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 )
-
-var filename = flag.String("source", "problems.csv", "the csv file that contains the problems")
 
 type problem struct {
 	question string
@@ -17,6 +16,8 @@ type problem struct {
 }
 
 func main() {
+	filename := flag.String("source", "problems.csv", "the csv file that contains the problems")
+	timelimt := flag.Duration("limit", 30*time.Second, "time limit in seconds")
 	flag.Parse()
 
 	file, closer, err := getProblemsFile(*filename)
@@ -32,9 +33,24 @@ func main() {
 		os.Exit(1)
 	}
 
-	correct, wrong := askQuestions(problems)
-	fmt.Println("\nTotal number of questions: ", len(problems))
-	fmt.Printf("You answered %v questions correctly and %v questions wrongly.\n", correct, wrong)
+	fmt.Println("Welcome to the QUIZ GAME...")
+
+	// Create a channel to wait for Enter key press
+	enterkeyPressed := make(chan bool)
+
+	// Listen for a signal (e.g., Enter key press) in a goroutine
+	go func() {
+		var input string
+		fmt.Print("Press Enter to start the quiz:")
+		fmt.Scanln(&input)
+		enterkeyPressed <- true
+	}()
+
+	// Wait for Enter key press
+	<-enterkeyPressed
+
+	askQuestions(problems, timelimt)
+
 }
 
 func getProblemsFile(name string) (*os.File, func(), error) {
@@ -60,18 +76,49 @@ func getProblems(r io.Reader) (problems []problem) {
 	return problems
 }
 
-func askQuestions(questions []problem) (int, int) {
-	var correct, wrong int
-	for _, v := range questions {
-		var input string
-		fmt.Printf("What is %s? ", v.question)
-		fmt.Scan(&input)
+func askQuestions(questions []problem, duration *time.Duration) {
+	// Create a channel to receive a timeout signal
+	timelimitExceeded := make(chan bool)
 
-		if v.answer == input {
-			correct++
-		} else {
-			wrong++
+	// Create a channel to receive a done signal
+	done := make(chan bool)
+
+	// Start the timer
+	timer := time.NewTimer(*duration)
+
+	// Listen for the timer expiration in a goroutine
+	go func() {
+		<-timer.C
+		timelimitExceeded <- true
+	}()
+
+	var correct, wrong int
+
+	// Ask questions
+	go func() {
+		for _, v := range questions {
+			var input string
+			fmt.Printf("What is %s? ", v.question)
+			fmt.Scan(&input)
+
+			if v.answer == input {
+				correct++
+			} else {
+				wrong++
+			}
 		}
+		done <- true
+	}()
+
+	// Wait for either the timer to expire or user to complete
+	select {
+	case <-timelimitExceeded:
+		fmt.Println("\nTime elapsed.")
+		fmt.Println("Total number of questions: ", len(questions))
+		fmt.Printf("You answered %v questions correctly and %v questions wrongly.\n", correct, len(questions)-correct)
+	case <-done:
+		fmt.Println("\nCompleted successfully.")
+		fmt.Println("Total number of questions: ", len(questions))
+		fmt.Printf("You answered %v questions correctly and %v questions wrongly.\n", correct, wrong)
 	}
-	return correct, wrong
 }
