@@ -2,11 +2,14 @@ package main
 
 import (
 	"encoding/csv"
+	"flag"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 )
+
+var filename = flag.String("source", "problems.csv", "the csv file that contains the problems")
 
 type problem struct {
 	question string
@@ -14,12 +17,14 @@ type problem struct {
 }
 
 func main() {
-	file, err := os.Open("problems.csv")
+	flag.Parse()
 
+	file, closer, err := getProblemsFile(*filename)
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
+		os.Exit(1)
 	}
-	defer file.Close()
+	defer closer()
 
 	problems := getProblems(file)
 	var correct, wrong int
@@ -38,6 +43,14 @@ func main() {
 	}
 	fmt.Println("\nTotal number of questions: ", len(problems))
 	fmt.Printf("You answered %v questions correctly and %v questions wrongly.\n", correct, wrong)
+}
+
+func getProblemsFile(name string) (*os.File, func(), error) {
+	file, err := os.Open(name)
+	if err != nil {
+		return nil, nil, err
+	}
+	return file, func() { file.Close() }, nil
 }
 
 func getProblems(r io.Reader) (problems []problem) {
