@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"strings"
 	"time"
@@ -18,6 +19,7 @@ type problem struct {
 func main() {
 	filename := flag.String("source", "problems.csv", "the csv file that contains the problems")
 	timelimt := flag.Duration("limit", 30*time.Second, "time limit in seconds")
+	shuffle := flag.Bool("shuffle", false, "changes the order in which the questions are asked")
 	flag.Parse()
 
 	file, closer, err := getProblemsFile(*filename)
@@ -33,6 +35,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *shuffle {
+		problems = shuffleQuestions(problems)
+	}
+
 	fmt.Println("Welcome to the QUIZ GAME...")
 
 	// Create a channel to wait for Enter key press
@@ -41,16 +47,16 @@ func main() {
 	// Listen for a signal (e.g., Enter key press) in a goroutine
 	go func() {
 		var input string
-		fmt.Print("Press Enter to start the quiz:")
+		fmt.Print("Press enter to start the quiz:")
 		fmt.Scanln(&input)
 		enterkeyPressed <- true
+		close(enterkeyPressed)
 	}()
 
 	// Wait for Enter key press
 	<-enterkeyPressed
 
 	askQuestions(problems, timelimt)
-
 }
 
 func getProblemsFile(name string) (*os.File, func(), error) {
@@ -77,20 +83,11 @@ func getProblems(r io.Reader) (problems []problem) {
 }
 
 func askQuestions(questions []problem, duration *time.Duration) {
-	// Create a channel to receive a timeout signal
-	timelimitExceeded := make(chan bool)
-
 	// Create a channel to receive a done signal
 	done := make(chan bool)
 
 	// Start the timer
 	timer := time.NewTimer(*duration)
-
-	// Listen for the timer expiration in a goroutine
-	go func() {
-		<-timer.C
-		timelimitExceeded <- true
-	}()
 
 	var correct, wrong int
 
@@ -108,11 +105,12 @@ func askQuestions(questions []problem, duration *time.Duration) {
 			}
 		}
 		done <- true
+		close(done)
 	}()
 
 	// Wait for either the timer to expire or user to complete
 	select {
-	case <-timelimitExceeded:
+	case <-timer.C:
 		fmt.Println("\nTime elapsed.")
 		fmt.Println("Total number of questions: ", len(questions))
 		fmt.Printf("You answered %v questions correctly and %v questions wrongly.\n", correct, len(questions)-correct)
@@ -121,4 +119,19 @@ func askQuestions(questions []problem, duration *time.Duration) {
 		fmt.Println("Total number of questions: ", len(questions))
 		fmt.Printf("You answered %v questions correctly and %v questions wrongly.\n", correct, wrong)
 	}
+}
+
+func shuffleQuestions(questions []problem) []problem {
+	size := len(questions)
+	for i := size - 1; i > 0; i-- {
+		j := rand.Intn(len(questions))
+		tmp := questions[i]
+
+		questions[i].question = questions[j].question
+		questions[i].answer = questions[j].answer
+
+		questions[j].question = tmp.question
+		questions[j].answer = tmp.answer
+	}
+	return questions
 }
